@@ -60,7 +60,19 @@ def inicio():
 @app.post("/predecir")
 def predecir(cliente: ClienteData):
     # Convertir a DataFrame
-    datos = pd.DataFrame([cliente.dict()])[feature_names]
+   datos_dict = {
+    'RevolvingUtilizationOfUnsecuredLines': cliente.RevolvingUtilizationOfUnsecuredLines,
+    'age': cliente.age,
+    'NumberOfTime30-59DaysPastDueNotWorse': cliente.NumberOfTime3059DaysPastDueNotWorse,
+    'DebtRatio': cliente.DebtRatio,
+    'MonthlyIncome': cliente.MonthlyIncome,
+    'NumberOfOpenCreditLinesAndLoans': cliente.NumberOfOpenCreditLinesAndLoans,
+    'NumberOfTimes90DaysLate': cliente.NumberOfTimes90DaysLate,
+    'NumberRealEstateLoansOrLines': cliente.NumberRealEstateLoansOrLines,
+    'NumberOfTime60-89DaysPastDueNotWorse': cliente.NumberOfTime6089DaysPastDueNotWorse,
+    'NumberOfDependents': cliente.NumberOfDependents
+}
+datos = pd.DataFrame([datos_dict])[feature_names]
 
     # Calcular score
     prob_mora = modelo.predict_proba(datos)[0][1]
