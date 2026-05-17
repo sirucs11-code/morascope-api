@@ -27,6 +27,9 @@ with open('feature_names.pkl', 'rb') as f:
 
 # Crear la app
 app = FastAPI()
+@app.options("/predecir")
+async def options_predecir():
+    return {"message": "OK"}
 
 # Esto permite que Lovable pueda llamar a tu API
 app.add_middleware(
