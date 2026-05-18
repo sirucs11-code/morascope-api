@@ -46,6 +46,42 @@ class ClienteData(BaseModel):
     NumberOfTime6089DaysPastDueNotWorse: int
     NumberOfDependents: int
 
+def generar_diagnostico(score, factor_principal):
+    nombres_legibles = {
+        "RevolvingUtilizationOfUnsecuredLines": "alta utilizacion de lineas de credito",
+        "NumberOfTimes90DaysLate": "multiples atrasos graves",
+        "NumberOfTime30-59DaysPastDueNotWorse": "atrasos leves frecuentes",
+        "DebtRatio": "alto ratio de endeudamiento",
+        "MonthlyIncome": "nivel de ingresos bajo",
+        "age": "perfil de edad del cliente",
+        "NumberOfOpenCreditLinesAndLoans": "exceso de creditos abiertos",
+        "NumberOfDependents": "numero de dependientes",
+        "NumberRealEstateLoansOrLines": "creditos hipotecarios",
+        "NumberOfTime60-89DaysPastDueNotWorse": "atrasos moderados recurrentes"
+    }
+
+    factor_texto = nombres_legibles.get(factor_principal, factor_principal)
+
+    if score >= 60:
+        return (
+            "Este cliente presenta senales de alto riesgo de mora. "
+            "El principal factor de alerta es " + factor_texto + ". "
+            "Con un score de " + str(score) + "/100, se recomienda activar protocolo "
+            "de seguimiento preventivo de forma inmediata."
+        )
+    elif score >= 30:
+        return (
+            "Este cliente muestra senales moderadas de riesgo financiero. "
+            "El factor que mas contribuye al riesgo es " + factor_texto + ". "
+            "Con un score de " + str(score) + "/100, se sugiere monitoreo periodico."
+        )
+    else:
+        return (
+            "Este cliente presenta un perfil financiero saludable. "
+            "El score de " + str(score) + "/100 indica baja probabilidad de mora. "
+            "Se recomienda mantener las condiciones actuales del credito."
+        )
+
 @app.post("/predecir")
 def predecir(cliente: ClienteData):
     datos_dict = {
@@ -60,10 +96,11 @@ def predecir(cliente: ClienteData):
         'NumberOfTime60-89DaysPastDueNotWorse': cliente.NumberOfTime6089DaysPastDueNotWorse,
         'NumberOfDependents': cliente.NumberOfDependents
     }
+
     datos = pd.DataFrame([datos_dict])[feature_names]
 
     prob_mora = modelo.predict_proba(datos)[0][1]
-    score = round(prob_mora * 100, 1)
+    score = round(float(prob_mora) * 100, 1)
 
     if score < 30:
         nivel = "bajo"
@@ -76,62 +113,25 @@ def predecir(cliente: ClienteData):
         color = "rojo"
 
     shap_vals = explainer.shap_values(datos)[0]
-    factores = pd.DataFrame({
-        'variable': feature_names,
-        'impacto': shap_vals
-    }).sort_values('impacto', key=abs, ascending=False)
 
-    top3 = [
-    {
-        'variable': str(row['variable']),
-        'impacto': float(row['impacto'])
-    }
-    for row in factores.head(3).to_dict('records')
-]
+    factores_lista = []
+    for i in range(len(feature_names)):
+        factores_lista.append({
+            'variable': str(feature_names[i]),
+            'impacto': float(shap_vals[i])
+        })
+
+    factores_lista.sort(key=lambda x: abs(x['impacto']), reverse=True)
+    top3 = factores_lista[:3]
+
     factor_principal = top3[0]['variable']
-    diagnostico = generar_diagnostico(score, factor_principal, cliente)
+    diagnostico = generar_diagnostico(score, factor_principal)
 
     return {
         "score_mora": score,
         "nivel": nivel,
         "color": color,
-        "probabilidad": round(prob_mora, 4),
+        "probabilidad": round(float(prob_mora), 4),
         "top_factores": top3,
         "diagnostico": diagnostico
     }
-
-def generar_diagnostico(score, factor_principal, cliente):
-    nombres_legibles = {
-        "RevolvingUtilizationOfUnsecuredLines": "alta utilización de líneas de crédito",
-        "NumberOfTimes90DaysLate": "múltiples atrasos graves",
-        "NumberOfTime30-59DaysPastDueNotWorse": "atrasos leves frecuentes",
-        "DebtRatio": "alto ratio de endeudamiento",
-        "MonthlyIncome": "nivel de ingresos bajo",
-        "age": "perfil de edad del cliente",
-        "NumberOfOpenCreditLinesAndLoans": "exceso de créditos abiertos",
-        "NumberOfDependents": "número de dependientes",
-        "NumberRealEstateLoansOrLines": "créditos hipotecarios",
-        "NumberOfTime60-89DaysPastDueNotWorse": "atrasos moderados recurrentes"
-    }
-
-    factor_texto = nombres_legibles.get(factor_principal, factor_principal)
-
-    if score >= 60:
-        return (
-            f"Este cliente presenta señales de alto riesgo de mora. "
-            f"El principal factor de alerta es {factor_texto}. "
-            f"Con un score de {score}/100, se recomienda activar protocolo "
-            f"de seguimiento preventivo de forma inmediata."
-        )
-    elif score >= 30:
-        return (
-            f"Este cliente muestra señales moderadas de riesgo financiero. "
-            f"El factor que más contribuye al riesgo es {factor_texto}. "
-            f"Con un score de {score}/100, se sugiere monitoreo periódico."
-        )
-    else:
-        return (
-            f"Este cliente presenta un perfil financiero saludable. "
-            f"El score de {score}/100 indica baja probabilidad de mora. "
-            f"Se recomienda mantener las condiciones actuales del crédito."
-        )
