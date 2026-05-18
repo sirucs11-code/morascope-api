@@ -81,8 +81,13 @@ def predecir(cliente: ClienteData):
         'impacto': shap_vals
     }).sort_values('impacto', key=abs, ascending=False)
 
-    top3 = factores.head(3).to_dict('records')
-
+    top3 = [
+    {
+        'variable': str(row['variable']),
+        'impacto': float(row['impacto'])
+    }
+    for row in factores.head(3).to_dict('records')
+]
     factor_principal = top3[0]['variable']
     diagnostico = generar_diagnostico(score, factor_principal, cliente)
 
